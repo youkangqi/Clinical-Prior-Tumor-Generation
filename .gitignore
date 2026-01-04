@@ -1,2 +1,4 @@
 Dataset_BUSI/
 data/
+*.txt
+outputs/

@@ -2,7 +2,6 @@
 import argparse
 import json
 import math
-import inspect
 from pathlib import Path
 
 import torch
@@ -13,6 +12,9 @@ from PIL import Image
 from tqdm import tqdm
 
 from diffusers import AutoencoderKL, ControlNetModel, DDPMScheduler, UNet2DConditionModel
+from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
+    download_controlnet_from_original_ckpt,
+)
 from diffusers.optimization import get_scheduler
 from transformers import CLIPTextModel, CLIPTokenizer
 
@@ -76,8 +78,8 @@ def parse_args():
     parser.add_argument("--output_dir", type=str, default="outputs/controlnet_busi")
     parser.add_argument("--resolution", type=int, default=512)
     parser.add_argument("--batch_size", type=int, default=4)
-    parser.add_argument("--gradient_accumulation_steps", type=int, default=8)
-    parser.add_argument("--num_epochs", type=int, default=1)
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=16)
+    parser.add_argument("--num_epochs", type=int, default=200)
     parser.add_argument("--max_train_steps", type=int, default=None)
     parser.add_argument("--learning_rate", type=float, default=1e-4)
     parser.add_argument("--weight_decay", type=float, default=1e-2)
@@ -108,20 +110,22 @@ def collate_fn(examples):
     }
 
 
-def load_controlnet(model_path, local_files_only, controlnet_config):
+def load_controlnet(model_path, local_files_only, controlnet_config, image_size):
     path = Path(model_path)
     if path.is_file():
-        if controlnet_config is not None and not Path(controlnet_config).exists():
-            raise FileNotFoundError(f"Missing controlnet_config: {controlnet_config}")
+        if path.suffix in {".pth", ".ckpt"}:
+            if not controlnet_config:
+                raise ValueError("controlnet_config is required for .pth/.ckpt ControlNet weights.")
+            if not Path(controlnet_config).exists():
+                raise FileNotFoundError(f"Missing controlnet_config: {controlnet_config}")
+            return download_controlnet_from_original_ckpt(
+                checkpoint_path=str(path),
+                original_config_file=str(controlnet_config),
+                image_size=image_size,
+                device="cpu",
+            )
         if hasattr(ControlNetModel, "from_single_file"):
-            kwargs = {}
-            if controlnet_config:
-                sig = inspect.signature(ControlNetModel.from_single_file)
-                if "original_config_file" in sig.parameters:
-                    kwargs["original_config_file"] = controlnet_config
-                elif "config" in sig.parameters:
-                    kwargs["config"] = controlnet_config
-            return ControlNetModel.from_single_file(str(path), **kwargs)
+            return ControlNetModel.from_single_file(str(path), local_files_only=local_files_only)
         raise ValueError(
             "controlnet_model points to a single-file checkpoint, but this diffusers "
             "version lacks ControlNetModel.from_single_file. Convert to a diffusers "
@@ -163,7 +167,12 @@ def main():
         subfolder="unet",
         local_files_only=args.local_files_only,
     )
-    controlnet = load_controlnet(args.controlnet_model, args.local_files_only, args.controlnet_config)
+    controlnet = load_controlnet(
+        args.controlnet_model,
+        args.local_files_only,
+        args.controlnet_config,
+        args.resolution,
+    )
 
     text_encoder.requires_grad_(False)
     vae.requires_grad_(False)

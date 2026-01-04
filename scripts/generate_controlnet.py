@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import argparse
 import json
-import inspect
 from pathlib import Path
 
 import torch
@@ -38,7 +37,7 @@ def load_samples(jsonl_path):
     return samples
 
 
-def load_controlnet(model_path, local_files_only, controlnet_config):
+def load_controlnet(model_path, local_files_only, controlnet_config, torch_dtype):
     path = Path(model_path)
     if path.is_file():
         if controlnet_config is not None and not Path(controlnet_config).exists():
@@ -46,18 +45,21 @@ def load_controlnet(model_path, local_files_only, controlnet_config):
         if hasattr(ControlNetModel, "from_single_file"):
             kwargs = {}
             if controlnet_config:
-                sig = inspect.signature(ControlNetModel.from_single_file)
-                if "original_config_file" in sig.parameters:
-                    kwargs["original_config_file"] = controlnet_config
-                elif "config" in sig.parameters:
-                    kwargs["config"] = controlnet_config
+                kwargs["original_config"] = controlnet_config
+            kwargs["local_files_only"] = local_files_only
+            if torch_dtype is not None:
+                kwargs["torch_dtype"] = torch_dtype
             return ControlNetModel.from_single_file(str(path), **kwargs)
         raise ValueError(
             "controlnet_model points to a single-file checkpoint, but this diffusers "
             "version lacks ControlNetModel.from_single_file. Convert to a diffusers "
             "directory or upgrade diffusers."
         )
-    return ControlNetModel.from_pretrained(str(path), local_files_only=local_files_only)
+    return ControlNetModel.from_pretrained(
+        str(path),
+        local_files_only=local_files_only,
+        torch_dtype=torch_dtype,
+    )
 
 
 def main():
@@ -68,7 +70,12 @@ def main():
 
     dtype = torch.float16 if device == "cuda" else torch.float32
 
-    controlnet = load_controlnet(args.controlnet_model, args.local_files_only, args.controlnet_config)
+    controlnet = load_controlnet(
+        args.controlnet_model,
+        args.local_files_only,
+        args.controlnet_config,
+        torch_dtype=dtype,
+    )
     pipe = StableDiffusionControlNetPipeline.from_pretrained(
         args.base_model,
         controlnet=controlnet,

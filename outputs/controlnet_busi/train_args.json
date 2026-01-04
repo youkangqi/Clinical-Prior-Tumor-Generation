@@ -1,12 +1,12 @@
 {
   "train_jsonl": "data/busi/splits/train.jsonl",
   "pretrained_model": "/homeB/youkangqi/.cache/huggingface/hub/models--stable-diffusion-v1-5--stable-diffusion-v1-5/snapshots/451f4fe16113bff5a5d2269ed5ad43b0592e9a14",
-  "controlnet_model": "/homeB/youkangqi/.cache/huggingface/hub/models--lllyasviel--ControlNet/snapshots/e78a8c4a5052a238198043ee5c0cb44e22abb9f7/models",
+  "controlnet_model": "/homeB/youkangqi/.cache/huggingface/hub/models--lllyasviel--ControlNet/snapshots/e78a8c4a5052a238198043ee5c0cb44e22abb9f7/models/control_sd15_seg.pth",
   "output_dir": "outputs/controlnet_busi",
   "resolution": 512,
   "batch_size": 4,
-  "gradient_accumulation_steps": 8,
-  "num_epochs": 1,
+  "gradient_accumulation_steps": 16,
+  "num_epochs": 200,
   "max_train_steps": null,
   "learning_rate": 0.0001,
   "weight_decay": 0.01,
@@ -15,5 +15,6 @@
   "mixed_precision": "fp16",
   "seed": 42,
   "device": null,
-  "local_files_only": true
+  "local_files_only": true,
+  "controlnet_config": "/homeB/youkangqi/imagine-colorization/ControlNet/models/cldm_v15.yaml"
 }
